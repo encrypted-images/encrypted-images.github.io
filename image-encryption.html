@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Image Encryption</title>
+		<meta charset="utf-8"></meta>
+		<style type="text/css">
+			body {
+				margin: 0px;
+			}
+			.menu {
+				position: sticky;
+				bottom: 0px;
+
+				padding: 5px;
+
+				background: #eee;
+				border: 2px solid #555;
+				border-radius: 15px;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="menu">
+			files to encrypt:<input id="encrypt-files" type="file" multiple><br/>
+			files to decrypt:<input id="decrypt-files" type="file" multiple><br/>
+		</div>
+
+		<script type="text/javascript">
+			const buff_to_base64 = (buff) => btoa(String.fromCharCode.apply(null, buff));
+
+			const base64_to_buf = (b64) =>
+				Uint8Array.from(atob(b64), (c) => c.charCodeAt(null));
+
+			const enc = new TextEncoder();
+			const dec = new TextDecoder();
+
+			const getPasswordKey = (password) =>
+				window.crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, [
+					"deriveKey",
+				]);
+
+			const deriveKey = (passwordKey, salt, keyUsage) =>
+				window.crypto.subtle.deriveKey(
+					{
+						name: "PBKDF2",
+						salt: salt,
+						iterations: 250000,
+						hash: "SHA-256",
+					},
+					passwordKey,
+					{ name: "AES-GCM", length: 256 },
+					false,
+					keyUsage
+				);
+
+			async function encryptData(secretData, password) {
+				const salt = window.crypto.getRandomValues(new Uint8Array(16));
+				const iv = window.crypto.getRandomValues(new Uint8Array(12));
+				const passwordKey = await getPasswordKey(password);
+				const aesKey = await deriveKey(passwordKey, salt, ["encrypt"]);
+				const encryptedContent = await window.crypto.subtle.encrypt(
+					{
+						name: "AES-GCM",
+						iv: iv,
+					},
+					aesKey,
+					secretData
+				);
+
+				const encryptedContentArr = new Uint8Array(encryptedContent);
+				let buff = new Uint8Array(
+					salt.byteLength + iv.byteLength + encryptedContentArr.byteLength
+				);
+				buff.set(salt, 0);
+				buff.set(iv, salt.byteLength);
+				buff.set(encryptedContentArr, salt.byteLength + iv.byteLength);
+				return buff;
+			}
+
+			async function decryptData(encryptedData, password) {
+				const salt = encryptedData.slice(0, 16);
+				const iv = encryptedData.slice(16, 16 + 12);
+				const data = encryptedData.slice(16 + 12);
+				const passwordKey = await getPasswordKey(password);
+				const aesKey = await deriveKey(passwordKey, salt, ["decrypt"]);
+				const decryptedContent = await window.crypto.subtle.decrypt(
+					{
+						name: "AES-GCM",
+						iv: iv,
+					},
+					aesKey,
+					data
+				);
+				return decryptedContent;
+			}
+
+
+			
+			document.querySelector("#encrypt-files").addEventListener("change", async(automatic=false)=>{
+				let input = document.querySelector("#encrypt-files");
+				if(input.files && input.files[0]) {
+					let files = [];
+					for(let i=0; i<input.files.length; i++) {
+						let file = input.files[i]
+						let filename = file.name+".encrypted";
+						files.push(filename)
+
+						console.log(file);
+
+						let arrayBuffer = await file.arrayBuffer();
+
+						console.log(arrayBuffer);
+
+						let encrypted = await encryptData(new Uint8Array(arrayBuffer),"key");
+
+						console.log(encrypted);
+
+						let blob = new Blob([encrypted]);
+
+						console.log(blob)
+
+						download(URL.createObjectURL(blob),filename);
+					}
+					let chapter = {
+						imageUrls: files
+					};
+					let blob = new Blob([JSON.stringify(chapter)]);
+					download(URL.createObjectURL(blob),"index.json");
+				}
+			});
+			document.querySelector("#decrypt-files").addEventListener("change", async(automatic=false)=>{
+				let input = document.querySelector("#decrypt-files");
+				if(input.files && input.files[0]) {
+					for(let i=0; i<input.files.length; i++) {
+						let file = input.files[i]
+						let filename = file.name;
+
+						console.log(file);
+
+						let arrayBuffer = await file.arrayBuffer();
+
+						console.log(arrayBuffer);
+
+						let decrypted = await decryptData(new Uint8Array(arrayBuffer),"key");
+
+						console.log(decrypted);
+
+						let blob = new Blob([decrypted]);
+
+						console.log(blob)
+
+						let url = URL.createObjectURL(blob);
+
+						download(url,filename.replace(".encrypted",""));
+					}
+				}
+			});
+			const download = (url,filename="file.png")=>{
+				let a = document.createElement('a');
+				a.download = filename;
+				a.style.display = 'none';
+				a.href = url;
+				document.body.appendChild(a);
+				a.click();
+				a.remove();
+			};
+			(async()=>{
+				if(location.hash.length>1) {
+					console.log(location.hash);
+					let string = decodeURI(location.hash.slice(1));
+					console.log(string);
+					let data = JSON.parse(string);
+					console.log(data);
+					let response = await fetch(data.chapterUrl+"index.json");
+					let chapter = await response.json();
+					for(let i=0; i<chapter.imageUrls.length; i++) {
+						let url = data.chapterUrl + chapter.imageUrls[i];
+						let arrayBuffer = await (await fetch(url)).arrayBuffer();
+						let decrypted = await decryptData(new Uint8Array(arrayBuffer),data.key);
+						let blob = new Blob([decrypted]);
+						let img = document.createElement("img");
+						img.src = URL.createObjectURL(blob);
+						document.body.appendChild(img);
+					}
+				}
+			})()
+		</script>
+	</body>
+</html>

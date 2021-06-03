@@ -44,7 +44,7 @@
 					{
 						name: "PBKDF2",
 						salt: salt,
-						iterations: 250000,
+						iterations: 1000,
 						hash: "SHA-256",
 					},
 					passwordKey,
@@ -119,13 +119,13 @@
 
 						console.log(blob)
 
-						download(URL.createObjectURL(blob),filename);
+						await download(URL.createObjectURL(blob),filename);
 					}
 					let chapter = {
 						imageUrls: files
 					};
 					let blob = new Blob([JSON.stringify(chapter)]);
-					download(URL.createObjectURL(blob),"index.json");
+					await download(URL.createObjectURL(blob),"index.json");
 				}
 			});
 			document.querySelector("#decrypt-files").addEventListener("change", async(automatic=false)=>{
@@ -135,27 +135,20 @@
 						let file = input.files[i]
 						let filename = file.name;
 
-						console.log(file);
-
 						let arrayBuffer = await file.arrayBuffer();
-
-						console.log(arrayBuffer);
 
 						let decrypted = await decryptData(new Uint8Array(arrayBuffer),"key");
 
-						console.log(decrypted);
-
 						let blob = new Blob([decrypted]);
-
-						console.log(blob)
 
 						let url = URL.createObjectURL(blob);
 
-						download(url,filename.replace(".encrypted",""));
+						await download(url,filename.replace(".encrypted",""));
 					}
 				}
 			});
-			const download = (url,filename="file.png")=>{
+			const download = async(url,filename="file.png")=>{
+				console.log(filename);
 				let a = document.createElement('a');
 				a.download = filename;
 				a.style.display = 'none';
@@ -163,6 +156,7 @@
 				document.body.appendChild(a);
 				a.click();
 				a.remove();
+				await new Promise((res)=>setTimeout(res,250))
 			};
 			(async()=>{
 				if(location.hash.length>1) {

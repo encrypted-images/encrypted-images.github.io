@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Image Encryption</title>
+		<meta charset="utf-8"></meta>
+		<style type="text/css">
+			body {
+				margin: 0px;
+				background-color: #333;
+				color: #eee;
+				font-family: ubuntu;
+
+			}
+			button, select {
+				padding: 5px;
+				padding-left: 15px;
+				padding-right: 15px;
+				
+				background-color: orange;
+				
+				border: none;
+				border: 2px solid rgba(0,0,0,0.3);
+				border-radius: 10px;
+				
+				font-size: 1.2em;
+			}
+			.chapter-navigation {
+				margin: 5px;
+				padding: 5px;
+				
+				background-color: #222;
+				border: 2px solid #111;
+				border-radius: 5px;
+			}
+			.images * {
+				display: block;
+				width: 100%;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="chapter-navigation">
+			Chapter: <select id="chapter-select"></select>
+			<button id="prev-button">prev</button>
+			<button id="next-button">next</button>
+		</div>
+		<div class="images" id="images"></div>
+		<div class="chapter-navigation">
+			Chapter: <select id="chapter-select"></select>
+			<button id="prev-button">prev</button>
+			<button id="next-button">next</button>
+		</div>
+
+		<script type="text/javascript">
+			const buff_to_base64 = (buff) => btoa(String.fromCharCode.apply(null, buff));
+
+			const base64_to_buf = (b64) =>
+				Uint8Array.from(atob(b64), (c) => c.charCodeAt(null));
+
+			const enc = new TextEncoder();
+			const dec = new TextDecoder();
+
+			const getPasswordKey = (password) =>
+				window.crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, [
+					"deriveKey",
+				]);
+
+			const deriveKey = (passwordKey, salt, keyUsage) => {
+				let key = window.crypto.subtle.deriveKey(
+					{
+						name: "PBKDF2",
+						salt: salt,
+						iterations: 1000,
+						hash: "SHA-256",
+					},
+					passwordKey,
+					{ name: "AES-GCM", length: 256 },
+					false,
+					keyUsage
+				);
+				return key;
+			};
+				
+
+			async function encryptData(secretData, password) {
+				const salt = window.crypto.getRandomValues(new Uint8Array(16));
+				const iv = window.crypto.getRandomValues(new Uint8Array(12));
+				const passwordKey = await getPasswordKey(password);
+				const aesKey = await deriveKey(passwordKey, salt, ["encrypt"]);
+				const encryptedContent = await window.crypto.subtle.encrypt(
+					{
+						name: "AES-GCM",
+						iv: iv,
+					},
+					aesKey,
+					secretData
+				);
+
+				const encryptedContentArr = new Uint8Array(encryptedContent);
+				let buff = new Uint8Array(
+					salt.byteLength + iv.byteLength + encryptedContentArr.byteLength
+				);
+				buff.set(salt, 0);
+				buff.set(iv, salt.byteLength);
+				buff.set(encryptedContentArr, salt.byteLength + iv.byteLength);
+				return buff;
+			}
+
+			async function decryptData(encryptedData, password) {
+				const salt = encryptedData.slice(0, 16);
+				const iv = encryptedData.slice(16, 16 + 12);
+				const data = encryptedData.slice(16 + 12);
+				console.time("getPasswordKey")
+				const passwordKey = await getPasswordKey(password);
+				console.timeEnd("getPasswordKey")
+				console.time("deriveKey")
+				const aesKey = await deriveKey(passwordKey, salt, ["decrypt"]);
+				console.timeEnd("deriveKey")
+				console.time("decrypt")
+				const decryptedContent = await window.crypto.subtle.decrypt(
+					{
+						name: "AES-GCM",
+						iv: iv,
+					},
+					aesKey,
+					data
+				);
+				console.timeEnd("decrypt")
+				return decryptedContent;
+			}
+
+
+
+			const displayUrl = async(url,key)=>{
+				location.hash = `#${url}#${key}`;
+				let urlFolders = url.split("/");
+				let base = "";
+				let manga = urlFolders[1];
+				let chapter = urlFolders[2];
+
+				let mangaInfo = await (await fetch(`${base}/${manga}/index.json`)).json();
+				
+				// load chapter select
+				const loadChapterSelect = (chapterSelect)=>{
+					chapterSelect.innerHTML = "";
+					for(let i=0; i<mangaInfo.chapters.length; i++) {
+						let chapterName = mangaInfo.chapters[i];
+
+						let option = document.createElement("option");
+						option.innerText = chapterName;
+						chapterSelect.appendChild(option);
+						if(chapterName === chapter) option.selected = true;
+						option.addEventListener("click",()=>{
+							displayUrl(`/${manga}/${chapterName}/`,key);
+						});
+					}
+				};
+				document.querySelectorAll("#chapter-select").forEach(e=>loadChapterSelect(e))
+
+				let chapterIndex = mangaInfo.chapters.indexOf(chapter);
+				// prev button
+				if(chapterIndex>0) {
+					const prev = ()=>{
+						let prevChapter = mangaInfo.chapters[chapterIndex-1];
+						displayUrl(`/${manga}/${prevChapter}/`,key)
+					};
+					document.querySelectorAll("#prev-button").forEach(e=>e.onclick=prev);
+				}
+				// next button
+				if(chapterIndex<mangaInfo.chapters.length-1) {
+					const next = ()=>{
+						let nextChapter = mangaInfo.chapters[chapterIndex+1];
+						displayUrl(`/${manga}/${nextChapter}/`,key)
+					};
+					document.querySelectorAll("#next-button").forEach(e=>e.onclick=next);
+				}
+
+				let chapterUrl = `${base}/${manga}/${chapter}/`;
+				let chapterInfo = await (await fetch(chapterUrl+"index.json")).json();
+
+				// load images
+				document.querySelector("#images").innerHTML = "";
+				for(let i=0; i<chapterInfo.imageUrls.length; i++) {
+					(async()=>{
+						if(location.hash !== `#${url}#${key}`) return;
+						let img = document.createElement("img");
+						document.querySelector("#images").appendChild(img);
+
+						let imageUrl = chapterUrl + chapterInfo.imageUrls[i];
+						let arrayBuffer = await (await fetch(imageUrl)).arrayBuffer();
+						let decrypted = await decryptData(new Uint8Array(arrayBuffer),key);
+						let blob = new Blob([decrypted]);
+						img.src = URL.createObjectURL(blob);
+					})()
+				}
+			};
+			if(location.hash.length>1) {
+				console.log(location.hash);
+				let string = decodeURI(location.hash.slice(1));
+				let args = string.split("#");
+				displayUrl(args[0],args[1]);
+			}
+		</script>
+	</body>
+</html>

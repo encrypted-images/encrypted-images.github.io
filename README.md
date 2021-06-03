@@ -1,2 +1,2 @@
 # encrypted-images.github.io
-[encrypted-images.github.io]()
+[view](encrypted-images.github.io)

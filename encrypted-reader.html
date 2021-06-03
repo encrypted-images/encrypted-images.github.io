@@ -66,7 +66,7 @@
 				]);
 
 			const deriveKey = (passwordKey, salt, keyUsage) => {
-				let key = window.crypto.subtle.deriveKey(
+				let userKey = window.crypto.subtle.deriveKey(
 					{
 						name: "PBKDF2",
 						salt: salt,
@@ -78,7 +78,7 @@
 					false,
 					keyUsage
 				);
-				return key;
+				return userKey;
 			};
 				
 
@@ -131,10 +131,27 @@
 
 
 
-			const displayUrl = async(url,key)=>{
-				location.hash = `#${url}#${key}`;
+			const sha256 = async(string)=>{
+				let stringBuffer = enc.encode(string);
+				let hashBuffer = await crypto.subtle.digest({name:"SHA-256"}, stringBuffer);
+				let hashBase16 = [...new Uint8Array(hashBuffer)].map(x => x.toString(16).padStart(2, '0')).join('');
+				let hashBase64 = btoa(String.fromCharCode(...new Uint8Array(hashBuffer)));
+				return hashBase16;
+			};
+
+
+
+			let base = "";
+			const getChapterKey = async(manga,chapter,userKey)=>{
+				let user = await sha256(userKey);
+				let arrayBuffer = await (await fetch(`${base}/access_control/${user}/${manga}/${chapter}.userKey.encrypted`)).arrayBuffer();
+				let decryptedBuffer = await decryptData(new Uint8Array(arrayBuffer),userKey);
+				let decryptedString = dec.decode(decryptedBuffer);
+				return decryptedString;
+			};
+			const displayUrl = async(url,userKey)=>{
+				location.hash = `#${url}#${userKey}`;
 				let urlFolders = url.split("/");
-				let base = "";
 				let manga = urlFolders[1];
 				let chapter = urlFolders[2];
 
@@ -151,7 +168,7 @@
 						chapterSelect.appendChild(option);
 						if(chapterName === chapter) option.selected = true;
 						option.addEventListener("click",()=>{
-							displayUrl(`/${manga}/${chapterName}/`,key);
+							displayUrl(`/${manga}/${chapterName}/`,userKey);
 						});
 					}
 				};
@@ -162,7 +179,7 @@
 				if(chapterIndex>0) {
 					const prev = ()=>{
 						let prevChapter = mangaInfo.chapters[chapterIndex-1];
-						displayUrl(`/${manga}/${prevChapter}/`,key)
+						displayUrl(`/${manga}/${prevChapter}/`,userKey)
 					};
 					document.querySelectorAll("#prev-button").forEach(e=>e.onclick=prev);
 				}
@@ -170,7 +187,7 @@
 				if(chapterIndex<mangaInfo.chapters.length-1) {
 					const next = ()=>{
 						let nextChapter = mangaInfo.chapters[chapterIndex+1];
-						displayUrl(`/${manga}/${nextChapter}/`,key)
+						displayUrl(`/${manga}/${nextChapter}/`,userKey)
 					};
 					document.querySelectorAll("#next-button").forEach(e=>e.onclick=next);
 				}
@@ -179,17 +196,23 @@
 				let chapterInfo = await (await fetch(chapterUrl+"index.json")).json();
 
 				// load images
+				let chapterKey = await getChapterKey(manga,chapter,userKey);
+				console.log("chapterKey:",chapterKey);
 				document.querySelector("#images").innerHTML = "";
 				for(let i=0; i<chapterInfo.imageUrls.length; i++) {
 					(async()=>{
-						if(location.hash !== `#${url}#${key}`) return;
+						if(location.hash !== `#${url}#${userKey}`) return;
 						let img = document.createElement("img");
 						document.querySelector("#images").appendChild(img);
 
 						let imageUrl = chapterUrl + chapterInfo.imageUrls[i];
+						if(location.hash !== `#${url}#${userKey}`) return;
 						let arrayBuffer = await (await fetch(imageUrl)).arrayBuffer();
-						let decrypted = await decryptData(new Uint8Array(arrayBuffer),key);
+						if(location.hash !== `#${url}#${userKey}`) return;
+						let decrypted = await decryptData(new Uint8Array(arrayBuffer),chapterKey);
+						if(location.hash !== `#${url}#${userKey}`) return;
 						let blob = new Blob([decrypted]);
+						if(location.hash !== `#${url}#${userKey}`) return;
 						img.src = URL.createObjectURL(blob);
 					})()
 				}

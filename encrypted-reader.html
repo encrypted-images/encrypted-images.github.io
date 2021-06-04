@@ -215,7 +215,10 @@
 				}
 				console.timeEnd("imageData manipulation");
 				c.putImageData(imageData,0,0);
+
+				console.timeEnd("processImage");
 				return canvas;
+
 				// c.fillText(watermark,0,20);
 				return await new Promise((res)=>{
 					console.time("blobify image");

@@ -336,9 +336,9 @@
 			};
 
 			setInterval(()=>{
-				window.parent.postMessage({setIframeHeight:window.innerHeight},"*");
+				window.parent.postMessage({setIframeHeight:document.body.getClientRects()[0].height+5},"*");
 			},250);
-			
+
 			if(location.hash.length>1) {
 				console.log(location.hash);
 				let string = decodeURI(location.hash.slice(1));

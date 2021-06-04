@@ -144,13 +144,8 @@
 				const salt = encryptedData.slice(0, 16);
 				const iv = encryptedData.slice(16, 16 + 12);
 				const data = encryptedData.slice(16 + 12);
-				console.time("getPasswordKey")
 				const passwordKey = await getPasswordKey(password);
-				console.timeEnd("getPasswordKey")
-				console.time("deriveKey")
 				const aesKey = await deriveKey(passwordKey, salt, ["decrypt"]);
-				console.timeEnd("deriveKey")
-				console.time("decrypt")
 				const decryptedContent = await window.crypto.subtle.decrypt(
 					{
 						name: "AES-GCM",
@@ -159,7 +154,6 @@
 					aesKey,
 					data
 				);
-				console.timeEnd("decrypt")
 				return decryptedContent;
 			}
 
@@ -184,17 +178,21 @@
 				return decryptedString;
 			};
 			const processImage = async(imageUrl, watermark)=>{
+				console.time("processImage");
 				let image = await new Promise((res)=>{
 					let image = new Image();
 					image.onload = ()=>{res(image);};
 					image.src = imageUrl;
 				});
+				URL.revokeObjectURL(imageUrl);
+				console.time("draw Image & get imageData");
 				let canvas = document.createElement("canvas");
 				let c = canvas.getContext("2d");
 				canvas.width = image.width;
 				canvas.height = image.height;
 				c.drawImage(image,0,0);
 				let imageData = c.getImageData(0,0,image.width,image.height);
+				console.timeEnd("draw Image & get imageData");
 				let bits = [];
 				for(let i=0; i<watermark.length; i++) {
 					let hexDigitCode = parseInt(watermark[i],16);
@@ -202,6 +200,7 @@
 						bits.push(1&(hexDigitCode>>(3-j)));
 					}
 				}
+				console.time("imageData manipulation");
 				for(let y=0; y<imageData.height; y++) {
 					for(let x=0; x<imageData.width; x++) {
 						let bitIndex = (x>>4) + (y>>4)*((imageData.width>>4)-1);
@@ -214,12 +213,17 @@
 						imageData.data[index*4+2] |= bits[(bitIndex*3+2)%bits.length];
 					}
 				}
+				console.timeEnd("imageData manipulation");
 				c.putImageData(imageData,0,0);
+				return canvas;
 				// c.fillText(watermark,0,20);
 				return await new Promise((res)=>{
+					console.time("blobify image");
 					canvas.toBlob((blob)=>{
 						res(URL.createObjectURL(blob));
-					})
+						console.timeEnd("blobify image");
+						console.timeEnd("processImage");
+					});
 				});
 			};
 			const displayUrl = async(url,userKey)=>{
@@ -296,8 +300,8 @@
 				for(let i=0; i<chapterInfo.imageUrls.length; i++) {
 					// (async()=>{
 						if(location.hash !== `#${url}#${userKey}`) return;
-						let img = document.createElement("img");
-						document.querySelector("#images").appendChild(img);
+						// let img = document.createElement("img");
+						// document.querySelector("#images").appendChild(img);
 
 						let encryptedImageUrl = chapterUrl + chapterInfo.imageUrls[i];
 						if(location.hash !== `#${url}#${userKey}`) return;
@@ -308,8 +312,10 @@
 						let blob = new Blob([decrypted]);
 						if(location.hash !== `#${url}#${userKey}`) return;
 						let imageUrl = URL.createObjectURL(blob);
-						let watermarkedUrl = await processImage(imageUrl,user);
-						img.src = watermarkedUrl;
+						// let watermarkedUrl = await processImage(imageUrl,user);
+						// img.src = watermarkedUrl;
+						let canvas = await processImage(imageUrl,user);
+						document.querySelector("#images").appendChild(canvas);
 					// })()
 				}
 			};

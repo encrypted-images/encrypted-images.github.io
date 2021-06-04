@@ -334,6 +334,11 @@
 					// })()
 				}
 			};
+
+			setInterval(()=>{
+				window.parent.postMessage({setIframeHeight:window.innerHeight},"*");
+			},250);
+			
 			if(location.hash.length>1) {
 				console.log(location.hash);
 				let string = decodeURI(location.hash.slice(1));

@@ -240,7 +240,7 @@
 						}
 						string += hexDigitCode.toString(16);
 					}
-					let ip = parseInt("112413421423456789".slice(-8),16);
+					let ip = parseInt(string.slice(-8),16);
 					let ipString = `${(ip<<24)&255}.${(ip<<16)&255}.${(ip<<8)&255}.${(ip<<0)&255}`;
 					alert(string+"\n"+ipString);
 				}

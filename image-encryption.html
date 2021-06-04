@@ -240,7 +240,9 @@
 						}
 						string += hexDigitCode.toString(16);
 					}
-					alert(string)
+					let ip = parseInt("112413421423456789".slice(-8),16);
+					let ipString = `${(ip<<24)&255}.${(ip<<16)&255}.${(ip<<8)&255}.${(ip<<0)&255}`;
+					alert(string+"\n"+ipString);
 				}
 			};
 			document.querySelector("#leaked-file").addEventListener("change", decodeLeakedImage);

@@ -294,7 +294,7 @@
 				console.log("chapterKey:",chapterKey);
 				document.querySelector("#images").innerHTML = "";
 				for(let i=0; i<chapterInfo.imageUrls.length; i++) {
-					(async()=>{
+					// (async()=>{
 						if(location.hash !== `#${url}#${userKey}`) return;
 						let img = document.createElement("img");
 						document.querySelector("#images").appendChild(img);
@@ -310,7 +310,7 @@
 						let imageUrl = URL.createObjectURL(blob);
 						let watermarkedUrl = await processImage(imageUrl,user);
 						img.src = watermarkedUrl;
-					})()
+					// })()
 				}
 			};
 			if(location.hash.length>1) {

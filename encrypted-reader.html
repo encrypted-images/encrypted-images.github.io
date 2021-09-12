@@ -213,16 +213,24 @@
 				// set last bits to ip address
 				bits = bits.slice(0,256-32).concat(ipBits);
 				console.time("imageData manipulation");
-				for(let y=0; y<imageData.height; y++) {
-					for(let x=0; x<imageData.width; x++) {
-						let bitIndex = (x>>4) + (y>>4)*((imageData.width>>4)-1);
-						let index = x+y*imageData.width;
-						imageData.data[index*4+0] &= ~1;
-						imageData.data[index*4+0] |= bits[(bitIndex*3+0)&255];
-						imageData.data[index*4+1] &= ~1;
-						imageData.data[index*4+1] |= bits[(bitIndex*3+1)&255];
-						imageData.data[index*4+2] &= ~1;
-						imageData.data[index*4+2] |= bits[(bitIndex*3+2)&255];
+				let data = imageData.data;
+				let width = imageData.width;
+				let height = imageData.height;
+				for(let y=0; y<height; y++) {
+					for(let x=0; x<width; x++) {
+						let bitIndex = (x>>4) + (y>>4)*((width>>4)-1);
+						bitIndex *= 3;
+						let index = x+y*width;
+						index *= 4;
+						// imageData.data[index+0] &= ~1;
+						// imageData.data[index+0] |= bits[(bitIndex++)&255];
+						data[index+0] = data[index+0]&(~1)|bits[(bitIndex++)&255];
+						// imageData.data[index+1] &= ~1;
+						// imageData.data[index+1] |= bits[(bitIndex++)&255];
+						data[index+1] = data[index+1]&(~1)|bits[(bitIndex++)&255];
+						// imageData.data[index+2] &= ~1;
+						// imageData.data[index+2] |= bits[(bitIndex++)&255];
+						data[index+2] = data[index+2]&(~1)|bits[(bitIndex++)&255];
 					}
 				}
 				console.timeEnd("imageData manipulation");
